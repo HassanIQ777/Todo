@@ -1,14 +1,6 @@
-/* 
-license:
-	All rights reserved to HassanIQ777
-	You may:
-		Use the code below, edit it or change it however you like, 
-		but never republish it under a new name, 
-		if so you may do it while crediting me.
-		
-	@ tokenizer.hpp provides the Tokenizer class which allows you to relate tokens to objects then do whatever you want
-Made on 2024 Nov 22th
-*/
+/* Part of https://github.com/HassanIQ777/libutils
+Made on    : 2024 Nov 22
+Last update: 2025 Sep 20 */
 
 #ifndef TOKENIZER_HPP
 #define TOKENIZER_HPP
@@ -31,46 +23,47 @@ bool has_sequence(const std::string &text, const std::string &sequence)
 	return text.find(sequence) != std::string::npos;
 }
 } // namespace __tokenizer_functions_namespace__
+
 class Tokenizer
 {
   private:
 	void updateVectors(std::string set_tokens_string)
 	{
-		tokens.clear();
-		tokens_lower.clear();
+		p_tokens.clear();
+		p_tokens_lower.clear();
 
 		std::stringstream ss(set_tokens_string); // init with input string
 		std::string token;
 
 		while (ss >> token) // extract tokens separated by spaces
 		{
-			tokens.push_back(token); // add original token
+			p_tokens.push_back(token); // add original token
 			std::string lower_token = __tokenizer_functions_namespace__::lowercase(token);
-			tokens_lower.push_back(lower_token); // add lowercase token
+			p_tokens_lower.push_back(lower_token); // add lowercase token
 		}
 	}
 
   public:
-	void reset(std::string new_tokens_string)
+	void m_reset(std::string new_tokens_string)
 	{
-		tokens_string = new_tokens_string;
+		p_tokens_string = new_tokens_string;
 		updateVectors(new_tokens_string);
 	}
 
-	bool match(std::string to_match, bool case_sensitive = false)
+	bool m_match(std::string to_match, bool case_sensitive = false)
 	{
 		if (!case_sensitive)
 		{
 			std::string to_match_lower = __tokenizer_functions_namespace__::lowercase(to_match);
-			for (const auto &token_lower : tokens_lower)
+			for (const auto &token_lower : p_tokens_lower)
 			{
 				if (__tokenizer_functions_namespace__::has_sequence(token_lower, to_match_lower))
 					return true;
 			}
 		}
-		else
+		else // else if left for readability
 		{
-			for (const auto &token : tokens)
+			for (const auto &token : p_tokens)
 			{
 				if (__tokenizer_functions_namespace__::has_sequence(token, to_match))
 					return true;
@@ -79,15 +72,42 @@ class Tokenizer
 		return false;
 	}
 
+	bool m_matchExact(std::string to_match, bool case_sensitive = false)
+	{
+		if (!case_sensitive)
+		{
+			std::string to_match_lower = __tokenizer_functions_namespace__::lowercase(to_match);
+			for (const auto &token_lower : p_tokens_lower)
+			{
+				if (token_lower == to_match_lower)
+					return true;
+			}
+		}
+		else // else if left for readability
+		{
+			for (const auto &token : p_tokens)
+			{
+				if (token == to_match)
+					return true;
+			}
+		}
+		return false;
+	}
+
+	const std::vector<std::string> &getTokens() const { return p_tokens; }
+	const std::string &getTokensString() const { return p_tokens_string; }
+
   public:
-	Tokenizer(std::string set_tokens_string) : tokens_string(set_tokens_string)
+	Tokenizer(std::string set_tokens_string) : p_tokens_string(set_tokens_string)
 	{
 		updateVectors(set_tokens_string);
 	}
-	//Token(){} // this requires more work so I'm not adding it
-	std::string tokens_string;
-	std::vector<std::string> tokens;	   //original
-	std::vector<std::string> tokens_lower; //non-case sensitive
+
+	Tokenizer() : p_tokens_string("") {}
+
+	std::string p_tokens_string;
+	std::vector<std::string> p_tokens;		 //original
+	std::vector<std::string> p_tokens_lower; //non-case sensitive
 };
 
 #endif // tokenizer.hpp

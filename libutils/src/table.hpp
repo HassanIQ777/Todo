@@ -1,15 +1,6 @@
-/*
-license:
-	All rights reserved to HassanIQ777
-	You may:
-		Use the code below, edit it or change it however you like, 
-		but never republish it under a new name, 
-		if so you may do it while crediting me.
-
-	@ use this to create tables, feel free to change it to customize your tables.
+/* Part of https://github.com/HassanIQ777/libutils
 Made on 		  2025-Jul-15
-Last update as of 2025-Jul-15
-*/
+Last update as of 2025-Sep-20 */
 
 #ifndef TABLE_HPP
 #define TABLE_HPP
@@ -39,7 +30,7 @@ class Table
   private:
 	std::vector<std::vector<std::string>> rows;
 	std::vector<size_t> colWidths;
-	int trailing_spaces = 2;
+	size_t trailing_spaces = 2;
 	char filler_char = '-';
 
 	template <typename T>
@@ -92,7 +83,7 @@ class Table
 		updateColWidths();
 	}
 
-	void m_setTrailingSpaces(int trailing_spaces_)
+	void m_setTrailingSpaces(size_t trailing_spaces_)
 	{
 		trailing_spaces = trailing_spaces_;
 	}
@@ -200,7 +191,7 @@ class Table
 			const auto &row = table.rows[rowIndex];
 			for (size_t i = 0; i < row.size(); ++i)
 			{
-				os << std::left << std::setw(table.colWidths[i] + table.trailing_spaces)
+				os << std::left << std::setw(static_cast<int>(table.colWidths[i] + table.trailing_spaces))
 				   << row[i];
 			}
 			os << "\n";

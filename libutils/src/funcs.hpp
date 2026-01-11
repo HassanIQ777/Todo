@@ -1,16 +1,6 @@
-/* 
-license:
-	All rights reserved to HassanIQ777
-	You may:
-		Use the code below, edit it or change it however you like, 
-		but never republish it under a new name, 
-		if so you may do it while crediting me.
-		
-	@ funcs.hpp has a few functions that I oftentimes need
-	@ so i made a header file out of them
-Made on:     2024 Nov 17
-Last update: 2025 Sep 12
-*/
+/* Part of https://github.com/HassanIQ777/libutils
+Made on    : 2024 Nov 17
+Last update: 2025 Nov 06 */
 
 #ifndef FUNCS_HPP
 #define FUNCS_HPP
@@ -19,15 +9,25 @@ Last update: 2025 Sep 12
 #include <iomanip>
 #include <cctype>
 #include <string>
+#include <algorithm>
+#include <vector>
 #include <thread>
 #include <chrono>
 #include <sstream>
 #include <ctime>
 #include <random>
+
+#ifdef _WIN32
+#include <windows.h>
+#include <conio.h>
+#else
 #include <sys/ioctl.h>
 #include <sys/utsname.h>
-#include <unistd.h>
 #include <termios.h>
+#endif
+
+#include <unistd.h>
+#include <type_traits> // std::common_type
 
 namespace funcs
 {
@@ -52,26 +52,28 @@ template <typename T, typename... Args>
 void print(const T &value, const Args &... args); // same but for infinite many arguments
 
 template <typename T>
-std::string str(const T &n);										  // converts anything (literally) to a string
-std::string lowercase(std::string text);							  // same as below
-std::string uppercase(std::string text);							  // returns an uppercase version of the provided text
-std::string removeChar(const std::string &text, char char_to_remove); // removes all instances of char_to_remove from input
-std::string replaceChar(std::string &text, char old_char, char new_char);
+std::string str(const T &n); // converts anything (literally) to a string
 
-int getTerminalWidth();		   // balls
+std::string lowercase(std::string text);				 // same as below
+std::string uppercase(std::string text);				 // returns an uppercase version of the provided text
+void removeChar(std::string &text, char char_to_remove); // removes all instances of char_to_remove from input
+void replaceChar(std::string &text, char old_char, char new_char);
+
+size_t getTerminalWidth();	   // balls
 std::string getPlatform(void); // returns a string of the platform the function runs on
 void clearTerminal();
 //template <typename T = std::string>
 //T readInput(const std::string prompt);
 std::string currentTime(); // returns a string of current date
-void msleep(int milliseconds);
-std::string getKeyPress();		 // returns a string of last key press (multiple characters supported!)
+void msleep(size_t milliseconds);
+std::string getKeyPress(); // returns a string of last key press (multiple characters supported!)
 
 inline bool hasSequence(const std::string &text, const std::string &sequence); // returns true if "sequence" was found in "text"
 inline std::string m_hash(const std::string text, const uintmax_t length = 32);
 
-bool isNumber(std::string &s);
+bool isNumber(const std::string &s);
 std::vector<std::string> split(const std::string &text, char delimiter);
+
 //########################################################
 // PRINTING FUNCTIONS
 template <typename T>
@@ -97,12 +99,12 @@ template <typename T>
 void printCentered(T text, int cd, int end_cd)
 {
 	std::string string_text = str(text);
-	int WIDTH = getTerminalWidth();
+	size_t WIDTH = getTerminalWidth();
 	if (string_text.length() > WIDTH)
 	{
 		string_text = string_text.substr(0, WIDTH - 1); // truncate if it exceeds terminal length (this is so lazy)
 	}
-	int padding = (WIDTH - string_text.size()) / 2;
+	size_t padding = (WIDTH - string_text.size()) / 2;
 	std::cout << std::string(padding, ' '); // padding spaces
 	printTimed(string_text, cd, end_cd);
 	//std::cout << std::string(padding, ' '); // end padding (currently doesn't work)
@@ -112,31 +114,31 @@ template <typename T>
 void printRight(T text, int cd, int end_cd)
 {
 	std::string string_text = str(text);
-	int WIDTH = getTerminalWidth();
+	size_t WIDTH = getTerminalWidth();
 	if (string_text.length() > WIDTH)
 	{
 		string_text = string_text.substr(0, WIDTH - 1); // truncate if it exceeds terminal length (this is so lazy)
 	}
-	int padding = WIDTH - string_text.size();
+	size_t padding = WIDTH - string_text.size();
 	std::cout << std::string(padding, ' '); // padding spaces
 	printTimed(string_text, cd, end_cd);
 	//std::cout << std::string(padding, ' '); // end padding (currently doesn't work)
 }
 void printLeftMiddleRight(const std::string &left, const std::string &middle, const std::string &right)
 {
-	int WIDTH = funcs::getTerminalWidth();
-	int max_left = WIDTH / 3;
-	int max_middle = WIDTH / 3;
-	int max_right = WIDTH - (max_left + max_middle); // remainder
+	size_t WIDTH = funcs::getTerminalWidth();
+	size_t max_left = WIDTH / 3;
+	size_t max_middle = WIDTH / 3;
+	size_t max_right = WIDTH - (max_left + max_middle); // remainder
 
 	std::string l = left.substr(0, max_left);
 	std::string m = middle.substr(0, max_middle);
 	std::string r = right.substr(0, max_right);
 
-	int used = l.size() + m.size() + r.size();
-	int remaining = WIDTH - used;
-	int padding_left = remaining / 2;
-	int padding_right = remaining - padding_left;
+	size_t used = l.size() + m.size() + r.size();
+	size_t remaining = WIDTH - used;
+	size_t padding_left = remaining / 2;
+	size_t padding_right = remaining - padding_left;
 
 	std::cout << l << std::string(padding_left, ' ') << m << std::string(padding_right, ' ') << r;
 }
@@ -180,25 +182,43 @@ std::string uppercase(std::string text)
 
 //########################################################
 // OTHER FUNCTIONS
-int getTerminalWidth()
+size_t getTerminalWidth()
 {
+#ifdef _WIN32 // Windows fuckery over here
+	HANDLE hStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
+	if (hStdOut == INVALID_HANDLE_VALUE)
+		return 80; // default width
+	
+	CONSOLE_SCREEN_BUFFER_INFO csbi;
+	if (!GetConsoleScreenBufferInfo(hStdOut, &csbi))
+		return 80; // default width
+	
+	return static_cast<size_t>(csbi.srWindow.Right - csbi.srWindow.Left + 1);
+#else // UNIX-like systems
 	struct winsize w;
+	
 	if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == -1)
 	{
 		perror("ioctl");
 		return 80; // default width
 	}
-	return w.ws_col;
+	return static_cast<size_t>(w.ws_col);
+#endif
 }
 
 std::string getPlatform()
 {
+	#ifdef _WIN32
+		return "Windows";
+
+	#else
 	struct utsname buffer;
 	if (uname(&buffer) == 0)
 	{
 		return std::string(buffer.sysname);
 	}
 	return "Unknown";
+	#endif
 }
 
 void clearTerminal()
@@ -242,47 +262,59 @@ void msleep(int milliseconds)
 
 std::string getKeyPress()
 {
-	struct termios oldt, newt;
-	char ch;
 	std::string sequence;
+
+#ifdef _WIN32
+	// Windows implementation using conio.h style
+	int ch = _getch();
+	sequence += static_cast<char>(ch);
+
+	// Check for extended keys (arrow keys, function keys, etc.)
+	if (ch == 0 || ch == 224)
+	{
+		sequence += static_cast<char>(_getch()); // one more
+		sequence += static_cast<char>(_getch()); // one more
+	}
+#else
+	// Unix/Linux/macOS implementation
+	struct termios oldt, newt;
+	unsigned char ch;
 
 	// Save old terminal settings
 	tcgetattr(STDIN_FILENO, &oldt);
 	newt = oldt;
 
 	// Turn off canonical mode and echo
-	newt.c_lflag &= ~(ICANON | ECHO);
+	newt.c_lflag &= ~(static_cast<unsigned int>(ICANON | ECHO));
 	tcsetattr(STDIN_FILENO, TCSANOW, &newt);
 
 	// Read the first character
-	ch = getchar();
+	ch = static_cast<unsigned char>(getchar());
 	sequence += ch;
 
 	// Check escape sequence
 	if (ch == '\033')
 	{
 		// read more chars
-		sequence += getchar(); // one more
-		sequence += getchar(); // one more
+		sequence += static_cast<unsigned char>(getchar()); // one more
+		sequence += static_cast<unsigned char>(getchar()); // one more
 	}
 
 	// Restore old terminal settings
 	tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+#endif
 
 	return sequence;
 }
 
-std::string removeChar(const std::string &text, char char_to_remove)
+void removeChar(std::string &text, char char_to_remove)
 {
-	std::string result = text;
-	result.erase(std::remove(result.begin(), result.end(), char_to_remove), result.end());
-	return result;
+	text.erase(std::remove(text.begin(), text.end(), char_to_remove), text.end());
 }
 
-std::string replaceChar(std::string &text, char old_char, char new_char)
+void replaceChar(std::string &text, char old_char, char new_char)
 {
 	std::replace(text.begin(), text.end(), old_char, new_char);
-	return text;
 }
 
 inline bool hasSequence(const std::string &text, const std::string &sequence)
@@ -290,6 +322,7 @@ inline bool hasSequence(const std::string &text, const std::string &sequence)
 	return text.find(sequence) != std::string::npos;
 }
 
+/*
 inline std::string m_hash(const std::string text, const uintmax_t length)
 {
 	const std::string charset = "0123456789abcdef";
@@ -311,15 +344,18 @@ inline std::string m_hash(const std::string text, const uintmax_t length)
 
 	return value; //cout << "Hash: " << value << endl;
 }
+*/
 
-bool isNumber(std::string &s)
+bool isNumber(const std::string &s)
 {
-	for (const char &c : s)
+	try
 	{
-		if (!isdigit(c))
-		{
-			return false;
-		}
+		long double unused_variable = std::stold(s);
+		unused_variable += 0; // skull emoji
+	}
+	catch (...)
+	{
+		return false;
 	}
 	return true;
 }
@@ -339,7 +375,46 @@ std::vector<std::string> split(const std::string &text, char delimiter)
 	return tokens;
 }
 
+template <typename T, typename U, typename V>
+constexpr auto clamp(const T &n, const U &lo, const V &hi)
+{
+	using R = std::common_type_t<T, U, V>;
+	R nn = n, l = lo, h = hi;
+	if (nn < l)
+		return l;
+	if (nn > h)
+		return h;
+	return nn;
+}
+
 } // namespace funcs
 //########################################################
+
+// These violate the namespace scope so no reason to put them inside
+inline void __staticAssert_impl(bool expression, const char *file, int line)
+{
+	if (!expression)
+	{
+		std::cerr << file << ":" << line << "\n";
+		std::exit(EXIT_FAILURE);
+	}
+}
+
+inline void __staticAssert_impl(bool expression, const std::string &msg, const char *file, int line)
+{
+	if (!expression)
+	{
+		std::cerr << file << ":" << line << " -> " << msg << "\n";
+		std::exit(EXIT_FAILURE);
+	}
+}
+
+// single macro that works for 1 or 2 arguments
+#define funcs_staticAssert(...) __funcs_staticAssert_dispatch(__VA_ARGS__, __funcs_staticAssert2, __funcs_staticAssert1)(__VA_ARGS__)
+
+// helpers to choose overload based on number of arguments
+#define __funcs_staticAssert_dispatch(_1, _2, NAME, ...) NAME
+#define __funcs_staticAssert1(expr) __staticAssert_impl(expr, __FILE__, __LINE__)
+#define __funcs_staticAssert2(expr, msg) __staticAssert_impl(expr, msg, __FILE__, __LINE__)
 
 #endif // funcs.hpp
