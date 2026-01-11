@@ -17,8 +17,8 @@ inline std::string trimStr(std::string text, int WIDTH) {
 
 inline void printTodos(std::vector<std::string> &todos, bool line_wrapping) {
   const int WIDTH = funcs::getTerminalWidth();
-   const std::string BORDER_CHAR = "─";
-  //const std::string BORDER_CHAR = "-";
+  const std::string BORDER_CHAR = "─";
+  // const std::string BORDER_CHAR = "-";
   std::string BORDER;
   for (int i = 0; i < WIDTH; i++) {
     BORDER += BORDER_CHAR;
